@@ -186,4 +186,58 @@ export class DeveloperHub {
       }
     }
   }
+
+  /**
+   * Deletes entities from Developer Hub by selector
+   * @param selector The selector to match entities (e.g., component name)
+   * @returns Promise<void>
+   */
+  public async deleteEntitiesBySelector(selector: string): Promise<void> {
+    try {
+      console.log(`Deleting entities with selector: ${selector}`);
+
+      // First, get the list of entities that match the selector
+      const response = await this.axios.get(
+        `${this.url}/api/catalog/entities`,
+        {
+          params: {
+            filter: `metadata.name=${selector}`
+          }
+        }
+      );
+
+      const entities = response.data;
+      
+      if (!entities || entities.length === 0) {
+        console.log(`No entities found with selector: ${selector}`);
+        return;
+      }
+
+      // Delete each entity
+      for (const entity of entities) {
+        const entityName = entity.metadata?.name;
+        const entityNamespace = entity.metadata?.namespace || 'default';
+        
+        if (entityName) {
+          console.log(`Deleting entity: ${entityName} in namespace: ${entityNamespace}`);
+          
+          await this.axios.delete(
+            `${this.url}/api/catalog/entities/by-name/${entityName}`,
+            {
+              params: {
+                namespace: entityNamespace
+              }
+            }
+          );
+          
+          console.log(`Successfully deleted entity: ${entityName}`);
+        }
+      }
+
+      console.log(`Successfully deleted all entities with selector: ${selector}`);
+    } catch (error: any) {
+      console.error(`Failed to delete entities with selector ${selector}: ${error.message}`);
+      throw new Error(`Failed to delete entities with selector ${selector}: ${error.message}`);
+    }
+  }
 }

@@ -212,4 +212,63 @@ export class GithubRepositoryService {
       throw new GithubApiError(`Failed to get commit SHA for branch '${branch}'`, error.status, error);
     }
   }
+
+  /**
+   * Deletes a file from a repository
+   * @param owner The repository owner
+   * @param repo The repository name
+   * @param path The path to the file to delete
+   * @param message The commit message
+   * @param sha The SHA of the file to delete
+   * @param branch The branch to delete from (default: 'main')
+   * @returns Promise<void>
+   */
+  public async deleteFile(
+    owner: string,
+    repo: string,
+    path: string,
+    message: string,
+    sha: string,
+    branch: string = 'main'
+  ): Promise<void> {
+    try {
+      console.log(`Deleting file ${path} from ${owner}/${repo}`);
+
+      await this.octokit.repos.deleteFile({
+        owner,
+        repo,
+        path,
+        message,
+        sha,
+        branch,
+      });
+
+      console.log(`Successfully deleted file ${path} from ${owner}/${repo}`);
+    } catch (error: any) {
+      console.error(`Failed to delete file ${path} from ${owner}/${repo}: ${error instanceof Error ? error.message : String(error)}`);
+      throw new GithubApiError(`Failed to delete file ${path} from ${owner}/${repo}`, error.status, error);
+    }
+  }
+
+  /**
+   * Deletes a repository
+   * @param owner The repository owner
+   * @param repo The repository name
+   * @returns Promise<void>
+   */
+  public async deleteRepository(owner: string, repo: string): Promise<void> {
+    try {
+      console.log(`Deleting repository ${owner}/${repo}`);
+
+      await this.octokit.repos.delete({
+        owner,
+        repo,
+      });
+
+      console.log(`Successfully deleted repository ${owner}/${repo}`);
+    } catch (error: any) {
+      console.error(`Failed to delete repository ${owner}/${repo}: ${error instanceof Error ? error.message : String(error)}`);
+      throw new GithubApiError(`Failed to delete repository ${owner}/${repo}`, error.status, error);
+    }
+  }
 }
