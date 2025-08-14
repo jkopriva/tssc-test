@@ -1,17 +1,20 @@
-import { test, expect } from '@playwright/test';
+import { config } from 'dotenv';
+import { resolve } from 'path';
+
+// Load environment variables from .env file
+config({ path: resolve(process.cwd(), '.env') });
+
 import { Component } from '../../src/rhtap/core/component';
 import { TestItem } from '../../src/playwright/testItem';
-import { TemplateType } from '../../src/rhtap/core/integration/git';
-import { GitType } from '../../src/rhtap/core/integration/git';
-import { CIType } from '../../src/rhtap/core/integration/ci';
-import { ImageRegistryType } from '../../src/rhtap/core/integration/registry';
-import { randomString } from '../../src/utils/util';
-import { loadFromEnv } from '../../src/utils/util';
-import { KubeClient } from '../../src/api/ocp/kubeClient';
-import { DeveloperHub } from '../../src/api/rhdh/developerhub';
-import { GithubProvider } from '../../src/rhtap/core/integration/git/providers/github';
-import { ArgoCD } from '../../src/rhtap/core/integration/cd/argocd';
+import { createBasicFixture } from '../../src/utils/test/fixtures';
 import { Environment } from '../../src/rhtap/core/integration/cd/argocd';
+import { GithubProvider } from '../../src/rhtap/core/integration/git/providers/github';
+import { expect } from '@playwright/test';
+
+/**
+ * Create a basic test fixture with testItem
+ */
+const testWithFixture = createBasicFixture();
 
 /**
  * Import Templates Test Suite
@@ -23,192 +26,195 @@ import { Environment } from '../../src/rhtap/core/integration/cd/argocd';
  * 4. Re-imports the component using the import template
  * 5. Verifies the imported component is created successfully
  */
-test.describe('Import Template Tests', () => {
+testWithFixture.describe('Import Template Tests', () => {
   let component: Component;
   let importedComponent: Component;
-  let kubeClient: KubeClient;
-  let developerHub: DeveloperHub;
-  let githubProvider: GithubProvider;
-  let argoCD: ArgoCD;
   
   const templateName = 'go'; // You can change this to test different templates
-  const githubOrganization = loadFromEnv('GITHUB_ORGANIZATION');
-  const repositoryName = `${randomString(9)}-${templateName}`;
-  const importedRepositoryName = `${repositoryName}-imported`;
-  const imageName = `rhtap-qe-${templateName}`;
-  const imageRegistry = loadFromEnv('IMAGE_REGISTRY') || 'quay.io';
 
-  test.beforeAll(async () => {
-    // Initialize Kubernetes client
-    kubeClient = new KubeClient();
-    
-    // Get Developer Hub URL and initialize client
-    const routeHostname = await kubeClient.getOpenshiftRoute('backstage-developer-hub', 'tssc-dh');
-    const developerHubUrl = `https://${routeHostname}`;
-    developerHub = new DeveloperHub(developerHubUrl);
-    
-    // Initialize GitHub provider
-    githubProvider = new GithubProvider(
-      repositoryName,
-      githubOrganization,
-      templateName as TemplateType,
-      kubeClient
-    );
-    await githubProvider.initialize();
-    
-    // Initialize ArgoCD
-    argoCD = new ArgoCD(repositoryName, kubeClient);
-  });
-
-  test(`verifies if ${templateName} template exists in the catalog`, async () => {
+  testWithFixture(`verifies if ${templateName} template exists in the catalog`, async () => {
     // This would require implementing a method to get golden path templates
     // For now, we'll assume the template exists if we can create a component
     expect(templateName).toBeDefined();
     console.log(`Template ${templateName} is available for testing`);
   });
 
-  test(`creates ${templateName} component`, async () => {
-    // Create test item for the component
-    const testItem = new TestItem(
-      repositoryName,
-      templateName as TemplateType,
-      imageRegistry as ImageRegistryType,
-      GitType.GITHUB,
-      CIType.TEKTON,
-      'local',
-      'local'
-    );
+  testWithFixture(`creates ${templateName} component`, async ({ testItem }) => {
+    const componentName = testItem.getName();
+    const imageName = `${componentName}`;
+    console.log(`Creating component: ${componentName}`);
 
-    // Create component using the TSSC framework
-    component = await Component.new(testItem.getName(), testItem, imageName, true);
-    
-    expect(component).toBeDefined();
-    expect(component.getName()).toBe(repositoryName);
-    console.log(`Component ${repositoryName} created successfully`);
+    try {
+      // Create component using the TSSC framework
+      component = await Component.new(componentName, testItem, imageName);
+      
+      expect(component).toBeDefined();
+      expect(component.getName()).toBe(componentName);
+      console.log(`Component ${componentName} created successfully`);
+    } catch (error) {
+      console.error(`❌ Failed to create component: ${error}`);
+      throw error;
+    }
   });
 
-  test(`waits for ${templateName} component to be finished`, async () => {
+  testWithFixture(`waits for ${templateName} component to be finished`, async () => {
+    if (!component) {
+      throw new Error('Component was not created successfully in the previous test');
+    }
+    
     // Wait for component creation to complete
     await component.waitUntilComponentIsCompleted();
-    console.log(`Component ${repositoryName} creation completed`);
+    console.log(`Component ${component.getName()} creation completed`);
   });
 
-  test(`waits for ${templateName} argocd to be synced in the cluster`, async () => {
+  testWithFixture(`waits for ${templateName} argocd to be synced in the cluster`, async () => {
+    if (!component) {
+      throw new Error('Component was not created successfully');
+    }
+    
+    const cd = component.getCD();
+    
     // Wait for ArgoCD application to be healthy
-    const syncResult = await argoCD.waitUntilApplicationIsSynced(
+    const result = await cd.waitUntilApplicationIsSynced(
       Environment.DEVELOPMENT,
       'HEAD',
       50, // maxRetries
       10000 // retryDelayMs
     );
     
-    expect(syncResult.synced).toBe(true);
-    console.log(`ArgoCD application for ${repositoryName} is synced and healthy`);
+    expect(result.synced).toBe(true);
+    console.log(`ArgoCD application for ${component.getName()} is synced and healthy`);
   });
 
-  test(`verifies if component ${templateName} was created in GitHub and contains 'catalog-info.yaml' file`, async () => {
+  testWithFixture(`verifies if component ${templateName} was created in GitHub and contains 'catalog-info.yaml' file`, async () => {
+    if (!component) {
+      throw new Error('Component was not created successfully');
+    }
+    
+    const git = component.getGit() as GithubProvider;
+    const componentName = component.getName();
+    
     // Check if repository exists in GitHub
-    const repositoryExists = await githubProvider.checkIfRepositoryExists(githubOrganization, repositoryName);
+    const repositoryExists = await git.checkIfRepositoryExists(git.getOrganization(), componentName);
     expect(repositoryExists).toBe(true);
 
     // Check if catalog-info.yaml exists
-    const catalogFileExists = await githubProvider.checkIfFileExistsInRepository(githubOrganization, repositoryName, 'catalog-info.yaml');
+    const catalogFileExists = await git.checkIfFileExistsInRepository(git.getOrganization(), componentName, 'catalog-info.yaml');
     expect(catalogFileExists).toBe(true);
     
-    console.log(`Repository ${repositoryName} and catalog-info.yaml verified in GitHub`);
+    console.log(`Repository ${componentName} and catalog-info.yaml verified in GitHub`);
   });
 
-  test(`deletes catalog file and tekton folder`, async () => {
+  testWithFixture(`deletes catalog file and tekton folder`, async () => {
+    if (!component) {
+      throw new Error('Component was not created successfully');
+    }
+    
+    const git = component.getGit() as GithubProvider;
+    const componentName = component.getName();
+    
     // Delete .tekton folder
-    await githubProvider.deleteFolderInRepository(githubOrganization, repositoryName, '.tekton');
+    await git.deleteFolderInRepository(git.getOrganization(), componentName, '.tekton');
     
     // Delete gitops folder
-    await githubProvider.deleteFolderInRepository(githubOrganization, repositoryName, 'gitops');
+    await git.deleteFolderInRepository(git.getOrganization(), componentName, 'gitops');
     
     // Delete catalog-info.yaml file
-    await githubProvider.deleteFileInRepository(githubOrganization, repositoryName, 'catalog-info.yaml');
+    await git.deleteFileInRepository(git.getOrganization(), componentName, 'catalog-info.yaml');
     
-    console.log(`Deleted .tekton, gitops folders and catalog-info.yaml from ${repositoryName}`);
+    console.log(`Deleted .tekton, gitops folders and catalog-info.yaml from ${componentName}`);
   });
 
-  test(`deletes location from backstage`, async () => {
+  testWithFixture(`deletes location from backstage`, async () => {
+    if (!component) {
+      throw new Error('Component was not created successfully');
+    }
+    
+    const developerHub = component.getDeveloperHub();
+    const componentName = component.getName();
+    
     // Delete entities from Developer Hub
-    await developerHub.deleteEntitiesBySelector(repositoryName);
-    console.log(`Deleted entities for ${repositoryName} from Developer Hub`);
+    await developerHub.deleteEntitiesBySelector(componentName);
+    console.log(`Deleted entities for ${componentName} from Developer Hub`);
   });
 
-  test(`creates import task for importing component`, async () => {
-    // Create test item for the imported component
+  testWithFixture(`creates import task for importing component`, async ({ testItem }) => {
+    if (!component) {
+      throw new Error('Component was not created successfully');
+    }
+    
+    const componentName = component.getName();
+    const importedComponentName = `${componentName}-imported`;
+    
+    // Create a new TestItem for the imported component
     const importedTestItem = new TestItem(
-      importedRepositoryName,
-      templateName as TemplateType,
-      imageRegistry as ImageRegistryType,
-      GitType.GITHUB,
-      CIType.TEKTON,
-      'local',
-      'local'
+      importedComponentName,
+      testItem.getTemplate(),
+      testItem.getregistryType(),
+      testItem.getGitType(),
+      testItem.getCIType(),
+      testItem.getTPA(),
+      testItem.getACS()
     );
 
-    // Create imported component using the TSSC framework
-    importedComponent = await Component.new(importedTestItem.getName(), importedTestItem, imageName, true);
-    
-    expect(importedComponent).toBeDefined();
-    expect(importedComponent.getName()).toBe(importedRepositoryName);
-    console.log(`Import task created for ${importedRepositoryName}`);
+    try {
+      // Create imported component using the TSSC framework
+      importedComponent = await Component.new(importedComponentName, importedTestItem, importedComponentName);
+      
+      expect(importedComponent).toBeDefined();
+      expect(importedComponent.getName()).toBe(importedComponentName);
+      console.log(`Import task created for ${importedComponentName}`);
+    } catch (error) {
+      console.error(`❌ Failed to create imported component: ${error}`);
+      throw error;
+    }
   });
 
-  test(`waits for imported component to be finished`, async () => {
+  testWithFixture(`waits for imported component to be finished`, async () => {
+    if (!importedComponent) {
+      throw new Error('Imported component was not created successfully');
+    }
+    
     // Wait for imported component creation to complete
     await importedComponent.waitUntilComponentIsCompleted();
-    console.log(`Imported component ${importedRepositoryName} creation completed`);
+    console.log(`Imported component ${importedComponent.getName()} creation completed`);
   });
 
-  test(`waits for imported component argocd to be synced in the cluster`, async () => {
-    // Create ArgoCD instance for imported component
-    const importedArgoCD = new ArgoCD(importedRepositoryName, kubeClient);
+  testWithFixture(`waits for imported component argocd to be synced in the cluster`, async () => {
+    if (!importedComponent) {
+      throw new Error('Imported component was not created successfully');
+    }
+    
+    const importedCD = importedComponent.getCD();
     
     // Wait for ArgoCD application to be healthy
-    const syncResult = await importedArgoCD.waitUntilApplicationIsSynced(
+    const result = await importedCD.waitUntilApplicationIsSynced(
       Environment.DEVELOPMENT,
       'HEAD',
       50, // maxRetries
       10000 // retryDelayMs
     );
     
-    expect(syncResult.synced).toBe(true);
-    console.log(`ArgoCD application for imported ${importedRepositoryName} is synced and healthy`);
+    expect(result.synced).toBe(true);
+    console.log(`ArgoCD application for imported ${importedComponent.getName()} is synced and healthy`);
   });
 
-  test(`verifies if imported component ${templateName} was created in GitHub and contains 'catalog-info.yaml' file`, async () => {
+  testWithFixture(`verifies if imported component ${templateName} was created in GitHub and contains 'catalog-info.yaml' file`, async () => {
+    if (!importedComponent) {
+      throw new Error('Imported component was not created successfully');
+    }
+    
+    const git = importedComponent.getGit() as GithubProvider;
+    const importedComponentName = importedComponent.getName();
+    
     // Check if imported repository exists in GitHub
-    const repositoryExists = await githubProvider.checkIfRepositoryExists(githubOrganization, importedRepositoryName);
+    const repositoryExists = await git.checkIfRepositoryExists(git.getOrganization(), importedComponentName);
     expect(repositoryExists).toBe(true);
 
     // Check if catalog-info.yaml exists in imported repository
-    const catalogFileExists = await githubProvider.checkIfFileExistsInRepository(githubOrganization, importedRepositoryName, 'catalog-info.yaml');
+    const catalogFileExists = await git.checkIfFileExistsInRepository(git.getOrganization(), importedComponentName, 'catalog-info.yaml');
     expect(catalogFileExists).toBe(true);
     
-    console.log(`Imported repository ${importedRepositoryName} and catalog-info.yaml verified in GitHub`);
-  });
-
-  test.afterAll(async () => {
-    // Cleanup: Delete created repositories and resources
-    if (process.env.CLEAN_AFTER_TESTS === 'true') {
-      console.log('Cleaning up test resources...');
-      
-      try {
-        // Delete repositories from GitHub
-        await githubProvider.deleteRepository(githubOrganization, repositoryName);
-        await githubProvider.deleteRepository(githubOrganization, importedRepositoryName);
-        
-        // Delete entities from Developer Hub
-        await developerHub.deleteEntitiesBySelector(repositoryName);
-        await developerHub.deleteEntitiesBySelector(importedRepositoryName);
-        
-        console.log('Cleanup completed successfully');
-      } catch (error) {
-        console.error('Error during cleanup:', error);
-      }
-    }
+    console.log(`Imported repository ${importedComponentName} and catalog-info.yaml verified in GitHub`);
   });
 });
