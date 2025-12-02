@@ -4,50 +4,8 @@
         "name": "backend-tests",
         "templates": ["go"],
         "tssc": [{
-          "git": "github",
+          "git": "bitbucket",
           "ci": "tekton",
-          "registry": "quay",
-          "tpa": "remote",
-          "acs": "remote"
-        },
-        {
-          "git": "gitlab",
-          "ci": "tekton",
-          "registry": "nexus",
-          "tpa": "remote",
-          "acs": "remote"
-        },
-        {
-          "git": "gitlab",
-          "ci": "gitlabci",
-          "registry": "quay",
-          "tpa": "remote",
-          "acs": "remote"
-        },
-        {
-          "git": "github",
-          "ci": "githubactions",
-          "registry": "artifactory",
-          "tpa": "remote",
-          "acs": "remote"
-        },
-        {
-          "git": "github",
-          "ci": "azure",
-          "registry": "quay",
-          "tpa": "remote",
-          "acs": "remote"
-        },
-        {
-          "git": "github",
-          "ci": "jenkins",
-          "registry": "quay",
-          "tpa": "remote",
-          "acs": "remote"
-        },
-        {
-          "git": "gitlab",
-          "ci": "jenkins",
           "registry": "quay",
           "tpa": "remote",
           "acs": "remote"
