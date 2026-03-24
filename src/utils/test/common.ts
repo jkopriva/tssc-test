@@ -246,8 +246,9 @@ export function getTestItemFromEnv(): TestItem {
       obj.registryType,
       obj.gitType,
       obj.ciType,
-      obj.tpa,
-      obj.acs
+      obj.tpa ?? '',
+      obj.acs ?? '',
+      obj.planName ?? 'legacy'
     );
   } catch (e) {
     throw new Error(`Failed to parse TESTITEM: ${e}`);

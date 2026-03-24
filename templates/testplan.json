@@ -4,16 +4,12 @@
     {
       "git": "github",
       "ci": "tekton",
-      "registry": "quay",
-      "tpa": "remote",
-      "acs": "local"
+      "registry": "quay"
     },
     {
       "git": "gitlab",
       "ci": "tekton",
-      "registry": "quay",
-      "tpa": "remote",
-      "acs": "local"
+      "registry": "quay"
     }
   ],
   "tests": ["ui", "full_workflow.test.ts"]

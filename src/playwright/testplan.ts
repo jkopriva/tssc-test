@@ -9,8 +9,10 @@ export interface TSScConfig {
   git: GitType;
   ci: CIType;
   registry: ImageRegistryType;
-  tpa: string;
-  acs: string;
+  /** @deprecated Unused, kept for backward compatibility with existing testplans */
+  tpa?: string;
+  /** @deprecated Unused, kept for backward compatibility with existing testplans */
+  acs?: string;
   name?: string; // Optional name for deterministic TestItem naming
 }
 
@@ -52,8 +54,8 @@ export class TestPlan {
         git: config.git || '',
         ci: config.ci || '',
         registry: config.registry || '',
-        tpa: config.tpa || '',
-        acs: config.acs || '',
+        tpa: config.tpa ?? '',
+        acs: config.acs ?? '',
         name: config.name,
       }));
       this.tests = data.tests || [];
@@ -76,8 +78,9 @@ export class TestPlan {
             tsscConfig.registry,
             tsscConfig.git,
             tsscConfig.ci,
-            tsscConfig.tpa,
-            tsscConfig.acs
+            tsscConfig.tpa ?? '',
+            tsscConfig.acs ?? '',
+            testPlan.name
           );
           
           // Add to global test items array
@@ -104,8 +107,9 @@ export class TestPlan {
             tsscConfig.registry,
             tsscConfig.git,
             tsscConfig.ci,
-            tsscConfig.tpa,
-            tsscConfig.acs
+            tsscConfig.tpa ?? '',
+            tsscConfig.acs ?? '',
+            'legacy'
           )
         );
       });
@@ -140,10 +144,37 @@ export class TestPlan {
     name: string;
     testItem: TestItem;
   }> {
-    return this.testItems.map(testItem => ({
-      name: `${testItem.getTemplate()}[${testItem.getGitType()}-${testItem.getCIType()}-${testItem.getRegistryType()}-${testItem.getACS()}]`,
-      testItem
-    }));
+    const configs = this.testItems.map(testItem => {
+      const name = `${testItem.getPlanName()}-${testItem.getTemplate()}[${testItem.getGitType()}-${testItem.getCIType()}-${testItem.getRegistryType()}]`;
+      return { name, testItem };
+    });
+    const nameCounts = new Map<string, { count: number; items: Array<{ template: string; git: string; ci: string; registry: string }> }>();
+    for (const { name, testItem } of configs) {
+      const key = name;
+      const entry = nameCounts.get(key);
+      const desc = {
+        template: testItem.getTemplate(),
+        git: testItem.getGitType(),
+        ci: testItem.getCIType(),
+        registry: testItem.getRegistryType(),
+      };
+      if (!entry) {
+        nameCounts.set(key, { count: 1, items: [desc] });
+      } else {
+        entry.count += 1;
+        entry.items.push(desc);
+      }
+    }
+    const duplicates = [...nameCounts.entries()].filter(([, v]) => v.count > 1);
+    if (duplicates.length > 0) {
+      const details = duplicates
+        .map(([name, v]) => `  "${name}" (${v.count} configs: ${v.items.map(i => `${i.template}[${i.git}-${i.ci}-${i.registry}]`).join(', ')})`)
+        .join('\n');
+      throw new Error(
+        `Duplicate project config names detected. Names must be unique across plans and legacy entries.\n${details}`
+      );
+    }
+    return configs;
   }
 
   // New methods for multiple test plans

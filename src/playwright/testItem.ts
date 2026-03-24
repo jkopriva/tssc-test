@@ -11,6 +11,8 @@ export class TestItem {
   private ciType: CIType;
   private tpa: string;
   private acs: string;
+  /** Plan name for unique project config naming (e.g. test plan name or 'legacy') */
+  private planName: string;
 
   constructor(
     name: string,
@@ -19,7 +21,8 @@ export class TestItem {
     gitType: GitType,
     ciType: CIType,
     tpa: string = '',
-    acs: string = ''
+    acs: string = '',
+    planName: string = 'legacy'
   ) {
     this.name = name;
     this.template = template;
@@ -28,6 +31,7 @@ export class TestItem {
     this.ciType = ciType;
     this.tpa = tpa;
     this.acs = acs;
+    this.planName = planName;
   }
 
   // Getters
@@ -59,6 +63,10 @@ export class TestItem {
     return this.acs;
   }
 
+  public getPlanName(): string {
+    return this.planName;
+  }
+
   // Setters
   public setName(name: string): void {
     this.name = name;
@@ -88,6 +96,10 @@ export class TestItem {
     this.acs = acs;
   }
 
+  public setPlanName(planName: string): void {
+    this.planName = planName;
+  }
+
   /**
    * Convert the TestItem to a JSON-serializable object
    */
@@ -100,6 +112,7 @@ export class TestItem {
       ciType: this.ciType,
       tpa: this.tpa,
       acs: this.acs,
+      planName: this.planName,
     };
   }
 
@@ -113,8 +126,9 @@ export class TestItem {
       data.registryType as ImageRegistryType,
       data.gitType as GitType,
       data.ciType as CIType,
-      data.tpa as string,
-      data.acs as string
+      (data.tpa as string) ?? '',
+      (data.acs as string) ?? '',
+      (data.planName as string) ?? 'legacy'
     );
   }
 }

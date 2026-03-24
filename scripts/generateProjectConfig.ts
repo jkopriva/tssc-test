@@ -40,18 +40,8 @@ function generateProjectConfig(): void {
       // New format: filter by specific test plan(s) - support comma-separated values
       requestedPlans = requestedPlan.split(',').map(name => name.trim()).filter(name => name.length > 0);
       logger.info(`Filtering test items for plan(s): ${requestedPlans.join(', ')}`);
-      
-      // Collect test items from all requested plans
-      const allTestItems: any[] = [];
-      for (const planName of requestedPlans) {
-        const testItems = testPlan.getTestItemsByPlanName(planName);
-        allTestItems.push(...testItems);
-      }
-      
-      projectConfigs = allTestItems.map(testItem => ({
-        name: `${testItem.getTemplate()}[${testItem.getGitType()}-${testItem.getCIType()}-${testItem.getRegistryType()}-${testItem.getACS()}]`,
-        testItem
-      }));
+      const allConfigs = testPlan.getProjectConfigs();
+      projectConfigs = allConfigs.filter(c => requestedPlans.includes(c.testItem.getPlanName()));
     } else {
       // Generate all project configurations (legacy behavior or all plans)
       projectConfigs = testPlan.getProjectConfigs();
