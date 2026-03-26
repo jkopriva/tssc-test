@@ -5,6 +5,7 @@ import { LoggerFactory } from '../../../logger/logger';
 import type { Logger } from '../../../logger/logger';
 import { GithubActionsPlugin } from './githubActionsPlugin';
 import { AzurePlugin } from './azurePlugin';
+import { GitlabCIPlugin } from './gitlabCIPlugin';
 
 export class CIFactory {
     private static readonly logger: Logger = LoggerFactory.getLogger(CIFactory);
@@ -29,6 +30,8 @@ export class CIFactory {
                 return new GithubActionsPlugin(name, registryOrg);
             case CIType.AZURE:
                 return new AzurePlugin(name, registryOrg);
+            case CIType.GITLABCI:
+                return new GitlabCIPlugin(name, registryOrg);
             default:
                 this.logger.warn(`Unsupported CI type: ${ciType}`);
                 return undefined;
