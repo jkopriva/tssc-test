@@ -12,10 +12,12 @@
         "generate-config": "npx ts-node scripts/generateProjectConfig.ts",
         "test": "npm run generate-config && playwright test",
         "test:plan": "npm run generate-config && JUNIT_OUTPUT_FILE=test-results/${TESTPLAN_NAME:-testplan}-e2e.junit playwright test",
-        "test:e2e": "TESTPLAN_NAME=backend-tests npm run generate-config && JUNIT_OUTPUT_FILE=test-results/devlake-backend-e2e.junit playwright test",
+        "test:e2e": "TESTPLAN_NAME=e2e-tests npm run generate-config && JUNIT_OUTPUT_FILE=test-results/devlake-backend-e2e.junit playwright test",
+        "test:import": "TESTPLAN_NAME=import-tests npm run generate-config &&  playwright test",
+        "test:backend": "TESTPLAN_NAME=e2e-tests,import-tests npm run generate-config &&  playwright test",
         "test:ui": "TESTPLAN_NAME=ui-tests JUNIT_OUTPUT_FILE=test-results/devlake-frontend-e2e.junit  playwright test",
         "test:ui-interactive": "TESTPLAN_NAME=ui-tests playwright test --ui",
-        "test:all": "TESTPLAN_NAME=backend-tests npm run generate-config &&  playwright test && TESTPLAN_NAME=ui-tests playwright test",
+        "test:all": "TESTPLAN_NAME=e2e-tests,import-tests npm run generate-config &&  playwright test && TESTPLAN_NAME=ui-tests playwright test",
         "test:report": "playwright show-report"
     },
     "keywords": [

@@ -41,6 +41,15 @@ export interface GitLabCommit {
   readonly created_at: string;
 }
 
+// Repository tree related types
+export interface RepositoryTreeNode {
+  readonly id: string;
+  readonly name: string;
+  readonly type: 'blob' | 'tree';
+  readonly path: string;
+  readonly mode: string;
+}
+
 export interface GitLabCommitSearchParams {
   readonly ref_name?: string;
   readonly path?: string;

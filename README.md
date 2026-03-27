@@ -359,16 +359,19 @@ npm test -- tests/tssc/full_workflow.test.ts
 TESTPLAN_PATH=./custom-testplan.json npm test
 
 # Run specific test plan (multiple test plans format)
-TESTPLAN_NAME=backend-tests npm test
+TESTPLAN_NAME=e2e-tests npm test
 
 # Run multiple test plans
-TESTPLAN_NAME=backend-tests,ui-tests npm test
+TESTPLAN_NAME=e2e-tests,ui-tests npm test
 
 # Run specific test plan from custom path
-TESTPLAN_PATH=./custom-testplan.json TESTPLAN_NAME=backend-tests npm test
+TESTPLAN_PATH=./custom-testplan.json TESTPLAN_NAME=e2e-tests npm test
 
 # Force UI test execution
 ENABLE_UI_TESTS=true npm test
+
+# Run import template tests (same prerequisites as other E2E: .env, kubeconfig, `npm run generate-config` via the script below)
+npm run test:import
 
 # View test report
 npm run test:report
@@ -420,6 +423,9 @@ TESTPLAN_NAME=github-tests npm test
 
 # Run UI tests
 npm run test:ui
+
+# Run import template tests (same prerequisites as other E2E; use `import-tests` plan or `npm run test:backend` for e2e + import)
+npm run test:import
 
 # View test report
 npm run test:report

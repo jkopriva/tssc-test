@@ -172,4 +172,29 @@ export abstract class BaseGitProvider implements Git {
     }
     return this.secret.username;
   }
+
+  public abstract checkIfRepositoryExists(owner: string, repoName: string): Promise<boolean>;
+
+  public abstract checkIfFileExistsInRepository(
+    owner: string,
+    repoName: string,
+    filePath: string,
+    branch?: string
+  ): Promise<boolean>;
+
+  public abstract deleteFileInRepository(
+    owner: string,
+    repoName: string,
+    filePath: string,
+    branch?: string,
+    commitMessage?: string
+  ): Promise<void>;
+
+  public abstract deleteFolderInRepository(
+    owner: string,
+    repoName: string,
+    folderPath: string,
+    branch?: string,
+    commitMessage?: string
+  ): Promise<void>;
 }

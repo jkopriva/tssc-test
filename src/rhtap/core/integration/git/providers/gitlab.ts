@@ -985,4 +985,124 @@ export class GitlabProvider extends BaseGitProvider {
   public async setProjectVariableOnGitOpsRepo(variables: Record<string, string>): Promise<void> {
     await this.setProjectVariables(variables, this.getGroup(), this.gitOpsRepoName);
   }
+
+  /**
+   * Checks if a repository exists in GitLab
+   * @param owner The repository owner (group)
+   * @param repoName The repository name
+   * @returns Promise<boolean> True if repository exists, false otherwise
+   */
+  public override async checkIfRepositoryExists(owner: string, repoName: string): Promise<boolean> {
+    try {
+      await this.gitlabClient.projects.getProject(`${owner}/${repoName}`);
+      return true;
+    } catch (error: any) {
+      if (error.status === 404 || error.message?.includes('not found')) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Checks if a file exists in a repository
+   * @param owner The repository owner (group)
+   * @param repoName The repository name
+   * @param filePath The path to the file
+   * @param branch The branch to check (default: 'main')
+   * @returns Promise<boolean> True if file exists, false otherwise
+   */
+  public override async checkIfFileExistsInRepository(owner: string, repoName: string, filePath: string, branch: string = 'main'): Promise<boolean> {
+    try {
+      const project = await this.gitlabClient.projects.getProject(`${owner}/${repoName}`);
+      await this.gitlabClient.repositories.getFileContent(project.id, filePath, branch);
+      return true;
+    } catch (error: any) {
+      // Check for all possible 404 error shapes from GitLab API
+      if (error instanceof GitLabNotFoundError ||
+          (error instanceof GitLabApiError && error.statusCode === 404) ||
+          error.response?.status === 404 ||
+          error.status === 404 ||
+          error.message?.includes('not found') ||
+          error.message?.includes('404')) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Deletes a file from a repository
+   * @param owner The repository owner (group)
+   * @param repoName The repository name
+   * @param filePath The path to the file to delete
+   * @param branch The branch to delete from (default: 'main')
+   * @param commitMessage The commit message for the deletion
+   * @returns Promise<void>
+   */
+  public override async deleteFileInRepository(owner: string, repoName: string, filePath: string, branch: string = 'main', commitMessage: string = 'Delete file'): Promise<void> {
+    try {
+      const project = await this.gitlabClient.projects.getProject(`${owner}/${repoName}`);
+      
+      // Delete the file using GitLab API
+      await this.gitlabClient.deleteFile(project.id, filePath, branch, commitMessage);
+
+      this.logger.info(`Successfully deleted file ${filePath} from ${owner}/${repoName}`);
+    } catch (error: any) {
+      // Handle 404 errors gracefully for idempotent cleanup
+      if (error.response?.status === 404 || error.status === 404 || error.message?.includes('404')) {
+        this.logger.info(`File ${filePath} was already absent from ${owner}/${repoName} (404 Not Found)`);
+        return;
+      }
+      
+      this.logger.error(`Failed to delete file ${filePath} from ${owner}/${repoName}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Deletes a folder from a repository by deleting all files in the folder
+   * @param owner The repository owner (group)
+   * @param repoName The repository name
+   * @param folderPath The path to the folder to delete
+   * @param branch The branch to delete from (default: 'main')
+   * @param commitMessage The commit message for the deletion
+   * @returns Promise<void>
+   */
+  public override async deleteFolderInRepository(owner: string, repoName: string, folderPath: string, branch: string = 'main', commitMessage: string = 'Delete folder'): Promise<void> {
+    try {
+      const project = await this.gitlabClient.projects.getProject(`${owner}/${repoName}`);
+
+      // Recursive listing so nested paths under e.g. `.tekton/` are all removed (non-recursive only sees one level)
+      const folderContents = await this.gitlabClient.getRepositoryTree(project.id, folderPath, branch, true);
+
+      if (!Array.isArray(folderContents)) {
+        throw new Error(`Path ${folderPath} is not a folder`);
+      }
+
+      if (folderContents.length === 0) {
+        this.logger.info(`Folder ${folderPath} empty or missing in ${owner}/${repoName}; nothing to delete`);
+        return;
+      }
+
+      const blobs = folderContents
+        .filter((item) => item.type === 'blob')
+        .sort((a, b) => b.path.length - a.path.length);
+
+      for (const item of blobs) {
+        await this.deleteFileInRepository(owner, repoName, item.path, branch, `${commitMessage}: ${item.name}`);
+      }
+
+      this.logger.info(`Successfully deleted folder ${folderPath} from ${owner}/${repoName}`);
+    } catch (error: any) {
+      // Handle 404 errors gracefully for idempotent cleanup
+      if (error.response?.status === 404 || error.status === 404 || error.message?.includes('404')) {
+        this.logger.info(`Folder ${folderPath} was already absent from ${owner}/${repoName} (404 Not Found)`);
+        return;
+      }
+      
+      this.logger.error(`Failed to delete folder ${folderPath} from ${owner}/${repoName}: ${error.message}`);
+      throw error;
+    }
+  }
 }

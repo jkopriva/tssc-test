@@ -9,6 +9,14 @@ import { LoggerFactory, closeAllLoggers as closeLoggers } from './factory/logger
 // Re-export LoggerFactory and utilities
 export { LoggerFactory, closeLoggers as closeAllLoggers };
 
+/** Default logger for API clients; supports (metadata, message) signature for structured logging */
+const _defaultLogger = LoggerFactory.getLogger('default');
+export const defaultLogger = {
+  info: (meta: object, msg: string) => _defaultLogger.info(msg, meta),
+  warn: (meta: object, msg: string) => _defaultLogger.warn(msg, meta),
+  error: (meta: object, msg: string) => _defaultLogger.error(msg, meta),
+};
+
 // Export new Logger class (composite pattern)
 export { Logger } from './core/Logger';
 

@@ -7,6 +7,7 @@ import { PullRequest } from '../models';
 import { ITemplate, TemplateFactory, TemplateType } from '../templates/templateFactory';
 import { KubeClient } from '../../../../../api/ocp/kubeClient';
 import { LoggerFactory, Logger } from '../../../../../logger/logger';
+import * as path from 'path';
 
 /**
  * Bitbucket provider class
@@ -957,5 +958,99 @@ export class BitbucketProvider extends BaseGitProvider {
    */
   public override getRepoOwner(): string {
     return this.getWorkspace();
+  }
+
+  /**
+   * Checks if a repository exists in Bitbucket
+   * @param owner The repository owner (workspace)
+   * @param repoName The repository name
+   * @returns Promise<boolean> True if repository exists, false otherwise
+   */
+  public override async checkIfRepositoryExists(owner: string, repoName: string): Promise<boolean> {
+    try {
+      await this.bitbucketClient.repositories.getRepository(owner, repoName);
+      return true;
+    } catch (error: any) {
+      if (error.status === 404 || error.message?.includes('not found')) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Checks if a file exists in a repository
+   * @param owner The repository owner (workspace)
+   * @param repoName The repository name
+   * @param filePath The path to the file
+   * @param branch The branch to check (default: 'main')
+   * @returns Promise<boolean> True if file exists, false otherwise
+   */
+  public override async checkIfFileExistsInRepository(owner: string, repoName: string, filePath: string, branch: string = 'main'): Promise<boolean> {
+    try {
+      await this.bitbucketClient.repositories.getFileContent(owner, repoName, filePath, branch);
+      return true;
+    } catch (error: any) {
+      if (error.status === 404 || error.message?.includes('not found')) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Deletes a file from a repository
+   * @param owner The repository owner (workspace)
+   * @param repoName The repository name
+   * @param filePath The path to the file to delete
+   * @param branch The branch to delete from (default: 'main')
+   * @param commitMessage The commit message for the deletion
+   * @returns Promise<void>
+   */
+  public override async deleteFileInRepository(owner: string, repoName: string, filePath: string, branch: string = 'main', commitMessage: string = 'Delete file'): Promise<void> {
+    try {
+      // Delete the file using Bitbucket API
+      await this.bitbucketClient.repositories.deleteFile(owner, repoName, filePath, branch, commitMessage);
+
+      this.logger.info(`Successfully deleted file ${filePath} from ${owner}/${repoName}`);
+    } catch (error: any) {
+      this.logger.error(`Failed to delete file ${filePath} from ${owner}/${repoName}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Deletes a folder from a repository by deleting all files in the folder
+   * @param owner The repository owner (workspace)
+   * @param repoName The repository name
+   * @param folderPath The path to the folder to delete
+   * @param branch The branch to delete from (default: 'main')
+   * @param commitMessage The commit message for the deletion
+   * @returns Promise<void>
+   */
+  public override async deleteFolderInRepository(owner: string, repoName: string, folderPath: string, branch: string = 'main', commitMessage: string = 'Delete folder'): Promise<void> {
+    try {
+      // Get the contents of the folder
+      const folderContents = await this.bitbucketClient.repositories.getDirectoryContent(owner, repoName, folderPath, branch);
+      
+      if (!Array.isArray(folderContents)) {
+        throw new Error(`Path ${folderPath} is not a folder`);
+      }
+
+      // Delete each file in the folder (BitbucketDirectoryEntry uses 'commit_file' | 'commit_directory')
+      for (const item of folderContents) {
+        const itemLabel = path.basename(item.path);
+        if (item.type === 'commit_file') {
+          await this.deleteFileInRepository(owner, repoName, item.path, branch, `${commitMessage}: ${itemLabel}`);
+        } else if (item.type === 'commit_directory') {
+          await this.deleteFolderInRepository(owner, repoName, item.path, branch, `${commitMessage}: ${itemLabel}`);
+        }
+      }
+
+      this.logger.info(`Successfully deleted folder ${folderPath} from ${owner}/${repoName}`);
+    } catch (error: any) {
+      this.logger.error(`Failed to delete folder ${folderPath} from ${owner}/${repoName}: ${error.message}`);
+      throw error;
+    }
   }
 }

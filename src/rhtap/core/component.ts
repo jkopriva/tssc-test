@@ -106,6 +106,65 @@ export class Component {
     }
   }
 
+  /** Suffix for publish target repos; import-repo `publish:*` creates new repos (same name as existing source fails). */
+  private static readonly IMPORT_PUBLISH_REPO_SUFFIX = '-reimport';
+
+  /**
+   * Runs the import-repo scaffolder task: `inputUrl` = existing source repo, publish = `{sourceName}-reimport` (+ gitops).
+   * Reuses source CI (only `ciType` in payload) and Developer Hub; new git/registry/ArgoCD for the publish repos.
+   */
+  public static async importFromExistingRepository(
+    source: Component,
+    testItem: TestItem,
+    importTemplateName: string = process.env.IMPORT_REPO_TEMPLATE_NAME || 'import-repo'
+  ): Promise<Component> {
+    const publishRepoBase = `${source.getName()}${Component.IMPORT_PUBLISH_REPO_SUFFIX}`;
+    const inputRepoUrl = source.getGit().getSourceRepoUrl();
+
+    const imported = new Component(publishRepoBase);
+    try {
+      imported.kubeClient = source.getKubeClient();
+      imported.ci = source.getCI();
+      imported.registry = await createRegistry(
+        testItem.getRegistryType(),
+        publishRepoBase,
+        imported.kubeClient
+      );
+      imported.git = await createGit(
+        imported.kubeClient,
+        testItem.getGitType(),
+        publishRepoBase,
+        testItem.getTemplate()
+      );
+      imported.cd = new ArgoCD(publishRepoBase, imported.kubeClient);
+      imported.developerHub = source.getDeveloperHub();
+
+      const options = imported.createImportFromRepoOptions(
+        testItem,
+        imported.registry,
+        imported.ci,
+        imported.git,
+        importTemplateName,
+        inputRepoUrl
+      );
+
+      const response = await imported.developerHub.createComponent(options);
+      if (!response || !response.id) {
+        throw new Error('Import from repo failed: no task ID from Developer Hub');
+      }
+      imported.id = response.id;
+      imported.isCreated = true;
+      imported.logger.info(
+        `Import-from-repo task started. Component name: ${imported.name}, task ID: ${imported.id}, template: ${importTemplateName}`
+      );
+      return imported;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      imported.logger.error(`Import from repo failed for publish target '${publishRepoBase}': ${errorMessage}`);
+      throw new Error(`Import from repo failed: ${errorMessage}`);
+    }
+  }
+
   /**
    * Waits until the component is completed.
    * Throws an error if the component has not been created yet.
@@ -202,14 +261,43 @@ export class Component {
     ci: CI,
     git: Git
   ): ScaffolderScaffoldOptions {
-    const template = testItem.getTemplate();
+    return this.buildScaffoldOptionsForGit(testItem.getTemplate(), testItem, registry, ci, git);
+  }
 
+  private createImportFromRepoOptions(
+    testItem: TestItem,
+    registry: ImageRegistry,
+    ci: CI,
+    targetGit: Git,
+    importTemplateName: string,
+    inputRepoUrl: string
+  ): ScaffolderScaffoldOptions {
+    const base = this.buildScaffoldOptionsForGit(importTemplateName, testItem, registry, ci, targetGit);
+    return {
+      ...base,
+      values: {
+        ...base.values,
+        inputUrl: inputRepoUrl,
+        dockerfileLocation: 'Dockerfile',
+        dockerfileBuildContext: '.',
+        appPort: '8080',
+      },
+    };
+  }
+
+  private buildScaffoldOptionsForGit(
+    templateName: string,
+    testItem: TestItem,
+    registry: ImageRegistry,
+    ci: CI,
+    git: Git
+  ): ScaffolderScaffoldOptions {
     let builder: any;
     switch (testItem.getGitType()) {
       case GitType.GITHUB:
         const github = git as unknown as GithubProvider;
         builder = ScaffolderOptionsBuilder(GitType.GITHUB)
-          .withTemplateName(template)
+          .withTemplateName(templateName)
           .withName(git.getSourceRepoName())
           .withImageConfig(
             registry.getImageName(),
@@ -223,7 +311,7 @@ export class Component {
       case GitType.GITLAB:
         const gitlab = git as unknown as GitlabProvider;
         builder = ScaffolderOptionsBuilder(GitType.GITLAB)
-          .withTemplateName(template)
+          .withTemplateName(templateName)
           .withName(git.getSourceRepoName())
           .withImageConfig(
             registry.getImageName(),
@@ -241,7 +329,7 @@ export class Component {
         const projectName = bitbucket.getProject();
         const username = bitbucket.getUsername();
         builder = ScaffolderOptionsBuilder(GitType.BITBUCKET)
-          .withTemplateName(template)
+          .withTemplateName(templateName)
           .withName(repoName)
           .withImageConfig(
             registry.getImageName(),

@@ -85,6 +85,15 @@ export interface BitbucketWebhook {
   events: string[];
 }
 
+export interface BitbucketDirectoryEntry {
+  path: string;
+  type: 'commit_file' | 'commit_directory';
+  size?: number;
+  commit?: {
+    hash: string;
+  };
+}
+
 export interface BitbucketPaginatedResponse<T> {
   values: T[];
   page?: number;

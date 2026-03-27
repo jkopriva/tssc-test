@@ -1,60 +1,63 @@
 {
   "testPlans": [
+    {
+      "name": "e2e-tests",
+      "templates": ["go"],
+      "tssc": [{
+        "git": "github",
+        "ci": "tekton",
+        "registry": "quay"
+      },
       {
-        "name": "backend-tests",
-        "templates": ["go"],
-        "tssc": [{
+        "git": "gitlab",
+        "ci": "tekton",
+        "registry": "nexus"
+      },
+      {
+        "git": "gitlab",
+        "ci": "gitlabci",
+        "registry": "quay",
+        "tpa": "local",
+        "acs": "remote"
+      },
+      {
+        "git": "github",
+        "ci": "githubactions",
+        "registry": "artifactory"
+      },
+      {
+        "git": "github",
+        "ci": "azure",
+        "registry": "quay"
+      },
+      {
+        "git": "github",
+        "ci": "jenkins",
+        "registry": "quay"
+      },
+      {
+        "git": "gitlab",
+        "ci": "jenkins",
+        "registry": "quay"
+      },
+      {
+        "git": "bitbucket",
+        "ci": "jenkins",
+        "registry": "quay"
+      }],
+      "tests": ["tssc/full_workflow.test.ts"]
+    },
+    {
+      "name": "import-tests",
+      "templates": ["go"],
+      "tssc": [
+        {
           "git": "github",
           "ci": "tekton",
-          "registry": "quay",
-          "tpa": "local",
-          "acs": "remote"
-        },
-        {
-          "git": "gitlab",
-          "ci": "gitlabci",
-          "registry": "quay",
-          "tpa": "local",
-          "acs": "remote"
-        },
-        {
-          "git": "github",
-          "ci": "githubactions",
-          "registry": "artifactory",
-          "tpa": "local",
-          "acs": "remote"
-        },
-        {
-          "git": "github",
-          "ci": "azure",
-          "registry": "quay",
-          "tpa": "local",
-          "acs": "remote"
-        },
-        {
-          "git": "github",
-          "ci": "jenkins",
-          "registry": "quay",
-          "tpa": "local",
-          "acs": "remote"
-        },
-        {
-          "git": "gitlab",
-          "ci": "jenkins",
-          "registry": "quay",
-          "tpa": "local",
-          "acs": "remote"
-        },
-        {
-          "git": "bitbucket",
-          "ci": "jenkins",
-          "registry": "quay",
-          "tpa": "local",
-          "acs": "remote"
+          "registry": "quay"
         }
       ],
-        "tests": ["full_workflow.test.ts"]
-      }
-    ]
-  }
-  
+      "tests": ["templates/import_templates.test.ts"]
+    }
+  ]
+}

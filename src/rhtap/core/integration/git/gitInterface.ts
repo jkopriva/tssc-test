@@ -117,4 +117,29 @@ export interface Git extends IntegrationSecret {
   getToken(): string;
 
   getUsername(): string;
+
+  checkIfRepositoryExists(owner: string, repoName: string): Promise<boolean>;
+
+  checkIfFileExistsInRepository(
+    owner: string,
+    repoName: string,
+    filePath: string,
+    branch?: string
+  ): Promise<boolean>;
+
+  deleteFileInRepository(
+    owner: string,
+    repoName: string,
+    filePath: string,
+    branch?: string,
+    commitMessage?: string
+  ): Promise<void>;
+
+  deleteFolderInRepository(
+    owner: string,
+    repoName: string,
+    folderPath: string,
+    branch?: string,
+    commitMessage?: string
+  ): Promise<void>;
 }
