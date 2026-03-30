@@ -54,6 +54,7 @@
         "@playwright/test": "^1.54.1",
         "@trivago/prettier-plugin-sort-imports": "^6.0.0",
         "@types/node": "^24.0.14",
+        "@types/proper-lockfile": "^4.1.4",
         "@types/sodium-native": "^2.3.9",
         "@types/uuid": "^11.0.0",
         "@types/winston": "^2.4.4",
@@ -71,6 +72,7 @@
         "pino": "^10.0.0",
         "pino-pretty": "^13.0.0",
         "prettier": "^3.6.2",
+        "proper-lockfile": "^4.1.2",
         "rimraf": "^6.0.1",
         "ts-node": "^10.9.2",
         "typescript": "^5.8.3"

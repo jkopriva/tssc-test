@@ -5,6 +5,7 @@ import { Git } from '../../src/rhtap/core/integration/git';
 import { TPA } from '../../src/rhtap/core/integration/tpa';
 import { ComponentPostCreateAction } from '../../src/rhtap/postcreation/componentPostCreateAction';
 import {
+  createComponentAndWaitForCompletion,
   runAndWaitforAppSync,
   handleSourceRepoCodeChanges,
   handlePromotionToEnvironmentandGetPipeline,
@@ -42,16 +43,18 @@ test.describe('TSSC Complete Workflow', () => {
 
   test.describe('Component Creation', () => {
     test('should create a component successfully', async ({ testItem, logger }) => {
-      // Generate component name directly in the test
+      // Generate initial component name directly in the test
       const componentName = testItem.getName();
-      const imageName = `${componentName}`;
-      logger.info(`Creating component: ${componentName}`);
+      logger.info(`Creating component with retry support. Initial name: ${componentName}`);
 
-      // Create the component directly in the test
-      component = await Component.new(componentName, testItem, imageName);
+      // Create the component and wait for completion with automatic retry
+      component = await createComponentAndWaitForCompletion(testItem, {
+        maxRetries: 2,
+        retryDelayMs: 10000,
+        regenerateNameOnRetry: true
+      });
 
-      // Wait for the component to be created
-      await component.waitUntilComponentIsCompleted();
+      logger.info(`Component created successfully with name: ${component.getName()}`);
 
       // Initialize shared resources
       cd = component.getCD();

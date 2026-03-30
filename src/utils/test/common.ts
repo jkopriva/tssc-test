@@ -6,6 +6,7 @@ import { EventType } from '../../rhtap/core/integration/ci';
 import { Git, PullRequest } from '../../rhtap/core/integration/git';
 import { TPA } from '../../rhtap/core/integration/tpa';
 import { SBOMResult } from '../../api/tpa/tpaClient';
+import { Component } from '../../rhtap/core/component';
 import { sleep } from '../util';
 import { expectPipelineSuccess } from './assertionHelpers';
 import { expect } from '@playwright/test';
@@ -13,6 +14,124 @@ import retry from 'async-retry';
 import { LoggerFactory, Logger } from '../../logger/logger';
 
 const logger: Logger = LoggerFactory.getLogger('utils.test.common');
+
+/**
+ * Determines if an error is non-retryable (should not trigger retry attempts).
+ * For example "Name already taken" errors are retryable because we regenerate the name.
+ */
+function isNonRetryableError(errorMessage: string): boolean {
+  const nonRetryablePatterns = [
+    /unauthorized/i,
+    /status code 401/i,
+    /authentication failed/i,
+    /invalid.*token/i,
+    /template.*not found/i,
+    /invalid.*template/i,
+    /permission denied/i,
+    /environment variable .* is not defined or is empty/i,
+    /failed to retrieve secret/i,
+  ];
+
+  return nonRetryablePatterns.some((pattern) => pattern.test(errorMessage));
+}
+
+/**
+ * Creates a component and waits for completion with retry support.
+ * 
+ * This function handles transient failures and name conflicts by:
+ * 1. Creating the component with the current testItem name
+ * 2. Waiting for component creation to complete (prints detailed task logs on failure)
+ * 3. If either step fails, regenerating a new component name and retrying
+ * 4. Continuing until success or max retries reached
+ * 
+ * @param testItem The test item containing configuration details (name will be modified on retry)
+ * @param options Retry configuration options
+ * @returns Promise<Component> The successfully created and completed component
+ * @throws Error when component creation fails after all retry attempts
+ */
+export async function createComponentAndWaitForCompletion(
+  testItem: TestItem,
+  options: { maxRetries?: number; retryDelayMs?: number; regenerateNameOnRetry?: boolean } = {}
+): Promise<Component> {
+  const DEFAULT_MAX_RETRIES = 3;
+  const DEFAULT_RETRY_DELAY_MS = 10000;
+  
+  const {
+    maxRetries = DEFAULT_MAX_RETRIES,
+    retryDelayMs = DEFAULT_RETRY_DELAY_MS,
+    regenerateNameOnRetry = true,
+  } = options;
+
+  let lastError: Error | null = null;
+  let attemptNumber = 0;
+  const originalName = testItem.getName();
+  const totalAttempts = maxRetries + 1;
+
+  while (attemptNumber <= maxRetries) {
+    attemptNumber++;
+    const componentName = testItem.getName();
+    const imageName = componentName;
+
+    logger.info(`[Attempt ${attemptNumber}/${totalAttempts}] Creating component '${componentName}'...`);
+
+    try {
+      // Step 1: Create the component
+      const component = await Component.new(componentName, testItem, imageName, true);
+      
+      // Step 2: Wait for completion
+      await component.waitUntilComponentIsCompleted();
+      
+      // Success!
+      logger.info(`✅ Component '${componentName}' created successfully on attempt ${attemptNumber}/${totalAttempts}`);
+      
+      return component;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      const errorMessage = lastError.message;
+
+      // Extract error summary (exclude task logs from summary display)
+      const errorSummary = errorMessage.includes('---TASK_LOGS_START---')
+        ? errorMessage.split('---TASK_LOGS_START---')[0].trim()
+        : errorMessage;
+
+      logger.error(`❌ COMPONENT CREATION FAILED - Attempt ${attemptNumber}/${totalAttempts} | Component: ${componentName} | Error: ${errorSummary}`);
+
+      // Check if we've exhausted all retries
+      if (attemptNumber > maxRetries) {
+        logger.error(`❌ All ${totalAttempts} attempts exhausted. Original: '${originalName}', Last tried: '${componentName}'`);
+        break;
+      }
+
+      // Check if this is a non-retryable error
+      if (isNonRetryableError(errorMessage)) {
+        logger.error(`Non-retryable error detected. Stopping retry attempts.`);
+        break;
+      }
+
+      logger.info(`🔄 Will retry. Attempts remaining: ${totalAttempts - attemptNumber}`);
+
+      // Regenerate name for next attempt if enabled
+      if (regenerateNameOnRetry) {
+        const newName = testItem.regenerateName();
+        logger.info(`New component name: '${newName}'`);
+        
+        // Save the new name immediately to project-configs.json
+        await testItem.saveComponentName();
+      }
+
+      // Wait before next retry
+      logger.info(`Waiting ${retryDelayMs}ms before next attempt...`);
+      await sleep(retryDelayMs);
+    }
+  }
+
+  // If we reach here, all retries failed
+  throw new Error(
+    `Component creation failed after ${attemptNumber} attempts. ` +
+    `Original name: '${originalName}'. ` +
+    `Last error: ${lastError?.message?.split('---TASK_LOGS_START---')[0].trim() || 'Unknown error'}`
+  );
+}
 
 /**
  * Promotes an application to a specific environment using a pull request workflow

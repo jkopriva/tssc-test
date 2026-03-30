@@ -132,16 +132,21 @@ export class DeveloperHub {
         } else if (status === 'failed' || status === 'cancelled') {
           this.logger.error(`Component creation ${status}.`, { taskId });
 
-          // Get logs to understand what went wrong
+          // Get logs to understand what went wrong and include in error
+          let taskLogs = '';
           try {
-            const logs = await this.getComponentLogs(taskId);
-            this.logger.error(`Task logs: ${logs}`);
+            taskLogs = await this.getComponentLogs(taskId);
+            this.logger.error(`Task logs:\n${taskLogs}`);
           } catch (logError) {
             this.logger.error(`Failed to retrieve task logs: ${logError instanceof Error ? logError.message : String(logError)}`);
           }
 
+          const errorMessage = taskLogs
+            ? `Component creation ${status} for task ${taskId}\n---TASK_LOGS_START---\n${taskLogs}\n---TASK_LOGS_END---`
+            : `Component creation ${status} for task ${taskId}`;
+
           // Use bail to immediately exit the retry loop for terminal failure states
-          bail(new Error(`Component creation ${status} for task ${taskId}`));
+          bail(new Error(errorMessage));
           return; // This line won't be reached after bail, but added for clarity
         }
 

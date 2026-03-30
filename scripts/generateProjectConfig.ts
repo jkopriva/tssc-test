@@ -5,6 +5,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import path from 'path';
 import { LoggerFactory } from '../src/logger/logger';
 import type { Logger } from '../src/logger/logger';
+import { PROJECT_CONFIGS_FILE } from '../src/constants';
 
 interface ProjectConfig {
   name: string;
@@ -68,7 +69,7 @@ function generateProjectConfig(): void {
     }));
 
     // Ensure output directory exists
-    const outputPath = './tmp/project-configs.json';
+    const outputPath = PROJECT_CONFIGS_FILE;
     const outputDir = path.dirname(outputPath);
     if (!existsSync(outputDir)) {
       mkdirSync(outputDir, { recursive: true });
