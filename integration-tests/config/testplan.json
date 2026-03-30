@@ -18,6 +18,10 @@
           "git": "github",
           "ci": "tekton",
           "registry": "quay"
+        },{
+          "git": "gitlab",
+          "ci": "tekton",
+          "registry": "quay"
         }
       ],
       "tests": ["templates/import_templates.test.ts"]
