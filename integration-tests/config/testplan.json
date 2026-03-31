@@ -7,11 +7,42 @@
         "git": "github",
         "ci": "tekton",
         "registry": "quay"
-      },{
-          "git": "gitlab",
-          "ci": "tekton",
-          "registry": "quay"
-        }],
+      },
+      {
+        "git": "gitlab",
+        "ci": "tekton",
+        "registry": "nexus"
+      },
+      {
+        "git": "gitlab",
+        "ci": "gitlabci",
+        "registry": "quay"
+      },
+      {
+        "git": "github",
+        "ci": "githubactions",
+        "registry": "artifactory"
+      },
+      {
+        "git": "github",
+        "ci": "azure",
+        "registry": "quay"
+      },
+      {
+        "git": "github",
+        "ci": "jenkins",
+        "registry": "quay"
+      },
+      {
+        "git": "gitlab",
+        "ci": "jenkins",
+        "registry": "quay"
+      },
+      {
+        "git": "bitbucket",
+        "ci": "jenkins",
+        "registry": "quay"
+      }],
       "tests": ["tssc/full_workflow.test.ts"]
     },
     {
