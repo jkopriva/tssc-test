@@ -9,7 +9,8 @@ import { GithubActionsPlugin } from '../../src/ui/plugins/ci/githubActionsPlugin
 import { GithubUiPlugin } from '../../src/ui/plugins/git/githubUi';
 import { Git, GitType } from '../../src/rhtap/core/integration/git';
 import { getDeveloperHubConfig } from '../../src/utils/util';
-import { KubeClient } from '../../src/api/ocp/kubeClient';
+import { ArgoCDPlugin } from '../../src/ui/plugins/cd/argocdPlugin';
+import { ArgocdPO } from '../../src/ui/page-objects/argocdPo';
 
 /**
  * Create a basic test fixture with testItem
@@ -118,6 +119,48 @@ test.describe('Component UI Test Suite', () => {
       await test.step('Check image registry links in View Output popup', async () => {
         await ciPlugin!.checkImageRegistryLinks(page);
       }, { timeout: 40000 });
+    });
+  });
+
+  test.describe("Verify CD", () => {
+    test('verify ArgoCD deployment lifecycle', async ({ page }) => {
+      const argocdPlugin = new ArgoCDPlugin(component.getCoreComponent().getName());
+
+      // Navigate to Overview page
+      await page.goto(`${component.getComponentUrl()}`, { timeout: 20000 });
+      await waitForPageLoad(page, component.getCoreComponent().getName());
+
+      await test.step('Hide Quick start side panel', async () => {
+        await hideQuickStartIfVisible(page);
+      }, { timeout: 20000 });
+
+      await test.step('Check Deployment Summary table', async () => {
+        await argocdPlugin.checkDeploymentSummary(page);
+      }, { timeout: 30000 });
+
+      // Navigate to CD tab
+      await page.goto(`${component.getComponentUrl()}/cd`, { timeout: 20000 });
+      await waitForPageLoad(page, component.getCoreComponent().getName());
+
+      await test.step('Hide Quick start side panel', async () => {
+        await hideQuickStartIfVisible(page);
+      }, { timeout: 30000 });
+
+      await test.step('Check Deployment Lifecycle heading', async () => {
+        await argocdPlugin.checkPageHeading(page);
+      }, { timeout: 30000 });
+
+      await test.step('Check environment cards', async () => {
+        for (const environment of ArgocdPO.environments) {
+          await argocdPlugin.checkEnvironmentCard(page, environment);
+        }
+      }, { timeout: 60000 });
+
+      await test.step('Check environment drawers', async () => {
+        for (const environment of ArgocdPO.environments) {
+          await argocdPlugin.checkDrawerContent(page, environment);
+        }
+      }, { timeout: 60000 });
     });
   });
 
